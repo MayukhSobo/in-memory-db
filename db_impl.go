@@ -2,6 +2,7 @@ package in_memory_db
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 )
@@ -13,7 +14,7 @@ type InMemoryDB struct {
 
 type Value struct {
 	value  string
-	expiry int64
+	expiry int
 }
 
 func NewInMemoryDB() *InMemoryDB {
@@ -141,5 +142,79 @@ func (db *InMemoryDB) ScanByPrefix(key, prefix string) []string {
 	3. DeleteAt(key, field string, timestamp int) bool
 	The same as Delete, but with timestamp of the operation
 	specified. Should return true if the field existed and was
-	successfully deleted and false if the key doesn't exist
+	successfully deleted and false if the key didn't exist.
+
+	4. GetAt(key, field string, timestamp int) *string
+	The same as Get, but with timestamp of the operation specified
+
+	5. ScanAt(key string, timestamp int) []string
+	The same Scan but with the timestamp of the operation specified
+
+	6. ScanPrefixAt(key, prefix string, timestamp int) []string
+	The same as ScanPrefix but with the timestamp of the operation specified.
 */
+
+func (db *InMemoryDB) SetAt(key, field, value string, timestamp int) {
+	if !isKeyPresent(db.Store, key) {
+		db.Store[key] = make(map[string]Value)
+	}
+	db.Store[key][field] = Value{value: value, expiry: math.MaxInt}
+}
+
+func (db *InMemoryDB) SetAtWithTtl(key, field, value string, timestamp, ttl int) {
+	if !isKeyPresent(db.Store, key) {
+		db.Store[key] = make(map[string]Value)
+	}
+	db.Store[key][field] = Value{value: value, expiry: timestamp + ttl}
+}
+
+func (db *InMemoryDB) DeleteAt(key, field string, timestamp int) bool {
+	// Custom implementation here
+	if !isFieldPresent(db.Store, key, field) {
+		return false
+	}
+	val := db.Store[key][field]
+	delete(db.Store[key], field)
+	return timestamp <= val.expiry
+}
+
+func (db *InMemoryDB) GetAt(key, field string, timestamp int) *string {
+	if !isFieldPresent(db.Store, key, field) {
+		return nil
+	}
+	val := db.Store[key][field]
+	if timestamp <= val.expiry {
+		return &val.value
+	}
+	return nil
+}
+
+func (db *InMemoryDB) ScanAt(key string, timestamp int) []string {
+	if !isKeyPresent(db.Store, key) {
+		return []string{}
+	}
+	var res = []string{}
+	for field, val := range db.Store[key] {
+		if timestamp <= val.expiry {
+			res = append(res, fmt.Sprintf("%s(%s)", field, val.value))
+		}
+	}
+	sort.Strings(res)
+	return res
+}
+
+func (db *InMemoryDB) ScanPrefixAt(key, prefix string, timestamp int) []string {
+	if !isKeyPresent(db.Store, key) {
+		return []string{}
+	}
+	var res = []string{}
+	for field, val := range db.Store[key] {
+		if strings.HasPrefix(field, prefix) {
+			if timestamp <= val.expiry {
+				res = append(res, fmt.Sprintf("%s(%s)", field, val.value))
+			}
+		}
+	}
+	sort.Strings(res)
+	return res
+}

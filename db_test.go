@@ -108,7 +108,7 @@ func TestLevel3(t *testing.T) {
 	}
 
 	expected = []string{"address(Wonderland)"}
-	if got := db.ScanByPrefixAt("user1", "add", 3); !reflect.DeepEqual(got, expected) {
+	if got := db.ScanPrefixAt("user1", "add", 3); !reflect.DeepEqual(got, expected) {
 		t.Errorf("Expected %v, got %v", expected, got)
 	}
 }
